@@ -5,7 +5,8 @@ Small [Lua](https://www.lua.org/) http server based on the [luv](https://github.
 ## Example
       
 ```lua
-require "luvhttpd".create(8080, "0.0.0.0")
+require "luvhttpd"
+	.create(8080, "0.0.0.0")
 	.handle("GET", "^/hello/(.*)$", function(req, res)
 		res.write(string.format("Hello %s!\r\n", req.params[1]))
 		res.close()
