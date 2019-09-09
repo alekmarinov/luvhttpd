@@ -66,6 +66,9 @@ function _M.onconnection(client)
         assert(not err, err)
 
         if not chunk then
+            if res.onclose then
+                res.onclose()
+            end
             res.close()
             return 
         end
@@ -101,7 +104,11 @@ function _M.onconnection(client)
             if not handler then
                 handler = _M.matchhandler(req) or _M.err_404
                 -- call handler once
-                handler(req, res)
+                xpcall(function () 
+                    handler(req, res)
+                end, function (err)
+                    _M.err_500(req, res, debug.traceback(err))
+                end)
             end
 
             -- send request body to handler if wanted
@@ -184,8 +191,11 @@ function _M.makeresponse(req)
                 req.client:write(tostring(data))
             else
                 -- empty data is response end indicator
-                req.client:shutdown()
-                req.client:close()
+                if not res.closed then
+                    req.client:shutdown()
+                    req.client:close()
+                    res.closed = true
+                end
             end
         end,
         -- send data if any and close client
@@ -207,20 +217,23 @@ function _M.makereserr(res, errcode, errname, errdesc)
 <TITLE>%d %s</TITLE>
 </HEAD><BODY>
 <H1>%s</H1>
-%s.<P>
+%s<P>
 </BODY></HTML>
 ]], errcode, errname, errname, errdesc)
     res.statusline = string.format("HTTP/1.1 %d %s", errcode, errname)
     res.headers["content-type"] = "text/html"
     res.headers["content-length"] = errmsg:len()
-    res.write(errmsg)
-    res.close()
-    return res
+    res.close(errmsg)
 end
 
 -- 404 response handler
 function _M.err_404(req, res)
-    return _M.makereserr(res, 404, "Not Found", string.format("The requested path %s was not found on this server", req.path))
+    _M.makereserr(res, 404, "Not Found", string.format("The requested path %s was not found on this server", req.path))
+end
+
+-- 500 response handler
+function _M.err_500(req, res, err)
+    _M.makereserr(res, 500, "Internal Server Error", string.format("<pre>%s</pre>", err))
 end
 
 -- basic uri parser
