@@ -8,6 +8,7 @@ local _M = {
     handlers = {},
     log = print
 }
+local unpack = unpack or table.unpack
 
 function _M.create(port, host)
     port = port or 8080
@@ -31,8 +32,10 @@ end
 function _M.parsecommandline(req)
     assert(type(req.cmdline) == "string")
     local cmdparts = {}
-    string.gsub(req.cmdline, "(%S*)(%S*)(%S*)", function (p) table.insert(cmdparts, p) end)
-    req.method, req.uri, req.version = table.unpack(cmdparts)
+    for w in string.gmatch(req.cmdline, "%S+") do
+        table.insert(cmdparts, w)
+    end
+    req.method, req.uri, req.version = unpack(cmdparts)
     req.method = string.upper (req.method or 'GET')
     local parsed = _M.parseuri(req.uri or '/')
     req.path = parsed.path
@@ -46,6 +49,10 @@ function _M.addheaderline(req, line)
         return nil
     end
     name = string.lower(name)
+    if name == "host" then
+        req.host, req.port = value:match("([^:]*):(%d+)")
+        req.port = tonumber(req.port)
+    end
     if req.headers[name] then
         req.headers[name] = req.headers[name] .. "," .. value
     else
@@ -167,7 +174,9 @@ end
 
 function _M.makerequest(client)
     local req = {
-        client = client
+        client = client,
+        host = _M.host,
+        port = _M.port
     }
     return req
 end
